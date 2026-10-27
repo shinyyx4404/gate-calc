@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Калькулятор ворот</title>
+<style>
+:root{--bg:#eef0f2;--card:#fff;--ink:#1d2329;--mute:#5d6872;--line:#d3d8dd;--acc:#1f4e79;--accink:#fff;--soft:#e3ebf3;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181c;--card:#1d2329;--ink:#e8ecef;--mute:#9aa6b0;--line:#323b44;--acc:#6fa8dc;--accink:#0e1418;--soft:#26323d}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;max-width:560px;margin:0 auto;padding:16px 16px 40px}
+h1{font-size:22px;margin:4px 0 2px;font-weight:700}
+.sub{color:var(--mute);margin:0 0 14px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
+label:first-child{margin-top:0}
+input,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:11px 12px;min-height:44px}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chk{display:flex;align-items:center;gap:10px;margin:10px 0 0;color:var(--ink);font-size:16px}
+.chk input{width:22px;height:22px;min-height:0;accent-color:var(--acc)}
+.total{background:var(--acc);color:var(--accink);border-radius:12px;padding:16px;margin-bottom:12px}
+.total small{opacity:.85;display:block}
+.total b{font-size:32px;display:block;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td{padding:7px 0;border-bottom:1px solid var(--line)}
+td:last-child{text-align:right;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.note{font-size:14px;color:var(--mute);background:var(--soft);border-radius:8px;padding:10px 12px;margin-top:10px}
+button{font:inherit;min-height:46px;border-radius:10px;border:1px solid var(--acc);background:var(--acc);color:var(--accink);padding:0 14px;width:100%;font-weight:600}
+button.alt{background:transparent;color:var(--acc);margin-top:8px}
+details summary{font-weight:600;min-height:32px;cursor:pointer}
+.prices{display:grid;grid-template-columns:1fr 110px;gap:8px 10px;align-items:center;margin-top:8px;font-size:14px}
+</style>
+</head>
+<body>
+<h1>Калькулятор ворот</h1>
+<p class="sub">Размеры проёма, тип, отделка и привод — получите ориентировочную стоимость.</p>
+
+<div class="card">
+  <label for="type">Тип ворот</label>
+  <select id="type">
+    <option value="slide">Откатные</option>
+    <option value="swing">Распашные</option>
+    <option value="sect">Секционные гаражные</option>
+  </select>
+  <div class="row">
+    <div><label for="w">Ширина проёма, м</label><input id="w" type="number" inputmode="decimal" step="0.01" min="1" value="4"></div>
+    <div><label for="h">Высота, м</label><input id="h" type="number" inputmode="decimal" step="0.01" min="1" value="2"></div>
+  </div>
+  <label for="fill">Заполнение</label>
+  <select id="fill">
+    <option value="prof">Профнастил</option>
+    <option value="shtak">Евроштакетник</option>
+    <option value="sand">Сэндвич-панель</option>
+  </select>
+  <label class="chk"><input id="auto" type="checkbox" checked> Автоматика (привод, пульты)</label>
+  <label class="chk"><input id="gate" type="checkbox"> Встроенная калитка</label>
+  <label class="chk"><input id="mount" type="checkbox" checked> Монтаж</label>
+  <label class="chk"><input id="deliv" type="checkbox" checked> Доставка</label>
+</div>
+
+<div class="total"><small>Итого, ориентировочно</small><b id="sum">—</b></div>
+
+<div class="card">
+  <table id="rows"></table>
+  <div class="note" id="tip"></div>
+</div>
+
+<button id="copy">Скопировать расчёт</button>
+<button class="alt" id="reset">Сбросить цены</button>
+
+<div class="card" style="margin-top:12px">
+  <details>
+    <summary>Цены (можно изменить)</summary>
+    <div class="prices" id="prices"></div>
+  </details>
+</div>
+
+<script>
+var DEF={
+  base_slide:4500,base_swing:3500,base_sect:8500,
+  fill_prof:0,fill_shtak:1500,fill_sand:2500,
+  auto_slide:35000,auto_swing:28000,auto_sect:25000,
+  gate:18000,mount:15,deliv:3000
+};
+var LABELS={
+  base_slide:"Откатные, ₽/м²",base_swing:"Распашные, ₽/м²",base_sect:"Секционные, ₽/м²",
+  fill_prof:"Профнастил, +₽/м²",fill_shtak:"Евроштакетник, +₽/м²",fill_sand:"Сэндвич, +₽/м²",
+  auto_slide:"Привод откатных, ₽",auto_swing:"Привод распашных, ₽",auto_sect:"Привод секционных, ₽",
+  gate:"Калитка, ₽",mount:"Монтаж, % от стоимости",deliv:"Доставка, ₽"
+};
+var P=JSON.parse(JSON.stringify(DEF));
+try{var s=localStorage.getItem("gc_prices");if(s){var o=JSON.parse(s);for(var k in o)if(k in P)P[k]=+o[k]||0;}}catch(e){}
+
+var $=function(id){return document.getElementById(id)};
+var fmt=function(n){return Math.round(n).toLocaleString("ru-RU")+" ₽"};
+var NAMES={slide:"Откатные",swing:"Распашные",sect:"Секционные"};
+var FNAMES={prof:"профнастил",shtak:"евроштакетник",sand:"сэндвич-панель"};
+var lastText="";
+
+function buildPrices(){
+  var box=$("prices");box.innerHTML="";
+  Object.keys(DEF).forEach(function(k){
+    var l=document.createElement("label");l.textContent=LABELS[k];l.style.margin="0";l.htmlFor="p_"+k;
+    var i=document.createElement("input");i.type="number";i.inputMode="decimal";i.id="p_"+k;i.value=P[k];
+    i.addEventListener("input",function(){P[k]=parseFloat(i.value)||0;try{localStorage.setItem("gc_prices",JSON.stringify(P))}catch(e){}calc()});
+    box.appendChild(l);box.appendChild(i);
+  });
+}
+
+function calc(){
+  var t=$("type").value,f=$("fill").value;
+  var w=parseFloat($("w").value)||0,h=parseFloat($("h").value)||0;
+  var area=w*h;
+  var rows=[];
+  var base=area*(P["base_"+t]+P["fill_"+f]);
+  rows.push(["Площадь",area.toFixed(2)+" м²"]);
+  rows.push(["Полотно: "+NAMES[t].toLowerCase()+", "+FNAMES[f],fmt(base)]);
+  var sum=base;
+  if($("auto").checked){var a=P["auto_"+t];rows.push(["Автоматика",fmt(a)]);sum+=a;}
+  if($("gate").checked){rows.push(["Калитка",fmt(P.gate)]);sum+=P.gate;}
+  if($("mount").checked){var m=sum*P.mount/100;rows.push(["Монтаж ("+P.mount+"%)",fmt(m)]);sum+=m;}
+  if($("deliv").checked){rows.push(["Доставка",fmt(P.deliv)]);sum+=P.deliv;}
+  $("rows").innerHTML=rows.map(function(r){return "<tr><td>"+r[0]+"</td><td>"+r[1]+"</td></tr>"}).join("");
+  $("sum").textContent=area>0?fmt(sum):"—";
+
+  var tip="";
+  if(t==="slide"){
+    tip="Откатные: нужна свободная стена длиной не менее "+(w*1.5).toFixed(2)+" м (проём + 50% на противовес). Общая длина полотна около "+(w*1.5).toFixed(2)+" м.";
+    if(w>6)tip+=" Ширина больше 6 м — нужен усиленный привод.";
+  }else if(t==="swing"){
+    tip="Распашные: каждая створка около "+(w/2).toFixed(2)+" м. Для открывания внутрь нужно свободное место не менее "+(w/2).toFixed(2)+" м от линии ворот.";
+    if(w>5)tip+=" Ширина больше 5 м — лучше выбрать откатные.";
+  }else{
+    tip="Секционные: проверьте притолоку (не менее 0,2 м) и боковые зазоры (не менее 0,1 м с каждой стороны), а также глубину помещения (не менее высоты проёма + 0,5 м).";
+    if(w>5||h>3)tip+=" Размер больше стандартного — потребуется индивидуальный заказ.";
+  }
+  $("tip").textContent=tip;
+  lastText="Расчёт ворот\n"+NAMES[t]+", "+FNAMES[f]+"\nПроём: "+w+" × "+h+" м ("+area.toFixed(2)+" м²)\n"+
+    rows.slice(1).map(function(r){return r[0]+": "+r[1]}).join("\n")+"\nИтого: "+fmt(sum);
+}
+
+["type","w","h","fill","auto","gate","mount","deliv"].forEach(function(id){
+  $(id).addEventListener("input",calc);$(id).addEventListener("change",calc);
+});
+$("copy").addEventListener("click",function(){
+  var b=$("copy");
+  function ok(){b.textContent="Скопировано";setTimeout(function(){b.textContent="Скопировать расчёт"},1500)}
+  try{navigator.clipboard.writeText(lastText).then(ok,fallback)}catch(e){fallback()}
+  function fallback(){var ta=document.createElement("textarea");ta.value=lastText;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");ok()}catch(e){}document.body.removeChild(ta)}
+});
+$("reset").addEventListener("click",function(){
+  P=JSON.parse(JSON.stringify(DEF));try{localStorage.removeItem("gc_prices")}catch(e){}buildPrices();calc();
+});
+buildPrices();calc();
+</script>
+</body>
+</html>
