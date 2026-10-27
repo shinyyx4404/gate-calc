@@ -99,6 +99,25 @@ var fmt=function(n){return Math.round(n).toLocaleString("ru-RU")+" ₽"};
 var NAMES={slide:"Откатные",swing:"Распашные",sect:"Секционные"};
 var FNAMES={prof:"профнастил",shtak:"евроштакетник",sand:"сэндвич-панель"};
 var lastText="";
+/* === Аналитика: впишите адрес и ключ проекта Supabase (см. инструкцию) === */
+var SB_URL="https://cciptmyyzcdwdsfigznq.supabase.co",SB_KEY="sb_publishable_LG5VrmefDiXPuBE5kh1ozw__t25jw_T";
+var DEVICE="";
+try{DEVICE=localStorage.getItem("gc_dev")||"";if(!DEVICE){DEVICE=Math.random().toString(36).slice(2,8)+Date.now().toString(36);localStorage.setItem("gc_dev",DEVICE);}}catch(e){DEVICE="anon"}
+var cur=null,tt=null;
+function sendQueue(items){
+  if(!SB_URL||!SB_KEY)return;
+  var q=[];try{q=JSON.parse(localStorage.getItem("gc_q")||"[]")}catch(e){}
+  q=q.concat(items||[]);if(!q.length)return;
+  fetch(SB_URL+"/rest/v1/calcs",{method:"POST",keepalive:true,
+    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"return=minimal"},
+    body:JSON.stringify(q)}).then(function(r){
+      if(!r.ok)throw 0;try{localStorage.removeItem("gc_q")}catch(e){}
+    }).catch(function(){try{localStorage.setItem("gc_q",JSON.stringify(q.slice(-50)))}catch(e){}});
+}
+function schedule(){
+  clearTimeout(tt);
+  tt=setTimeout(function(){if(cur&&cur.width>0&&cur.height>0)sendQueue([cur])},2000);
+}
 
 function buildPrices(){
   var box=$("prices");box.innerHTML="";
@@ -137,13 +156,14 @@ function calc(){
     tip="Секционные: проверьте притолоку (не менее 0,2 м) и боковые зазоры (не менее 0,1 м с каждой стороны), а также глубину помещения (не менее высоты проёма + 0,5 м).";
     if(w>5||h>3)tip+=" Размер больше стандартного — потребуется индивидуальный заказ.";
   }
+  cur={device:DEVICE,gate_type:t,width:w,height:h,fill:f,auto:$("auto").checked,gate:$("gate").checked,mount:$("mount").checked,deliv:$("deliv").checked,total:Math.round(sum)};
   $("tip").textContent=tip;
   lastText="Расчёт ворот\n"+NAMES[t]+", "+FNAMES[f]+"\nПроём: "+w+" × "+h+" м ("+area.toFixed(2)+" м²)\n"+
     rows.slice(1).map(function(r){return r[0]+": "+r[1]}).join("\n")+"\nИтого: "+fmt(sum);
 }
 
 ["type","w","h","fill","auto","gate","mount","deliv"].forEach(function(id){
-  $(id).addEventListener("input",calc);$(id).addEventListener("change",calc);
+  $(id).addEventListener("input",calc);$(id).addEventListener("change",calc);$(id).addEventListener("input",schedule);$(id).addEventListener("change",schedule);
 });
 $("copy").addEventListener("click",function(){
   var b=$("copy");
@@ -154,7 +174,7 @@ $("copy").addEventListener("click",function(){
 $("reset").addEventListener("click",function(){
   P=JSON.parse(JSON.stringify(DEF));try{localStorage.removeItem("gc_prices")}catch(e){}buildPrices();calc();
 });
-buildPrices();calc();
+buildPrices();calc();sendQueue([]);
 </script>
 </body>
 </html>

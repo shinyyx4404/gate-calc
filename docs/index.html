@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Админка калькулятора ворот</title>
+<style>
+:root{--bg:#eef0f2;--card:#fff;--ink:#1d2329;--mute:#5d6872;--line:#d3d8dd;--acc:#1f4e79;--soft:#e3ebf3}
+@media (prefers-color-scheme:dark){:root{--bg:#14181c;--card:#1d2329;--ink:#e8ecef;--mute:#9aa6b0;--line:#323b44;--acc:#6fa8dc;--soft:#26323d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,sans-serif;padding:16px;max-width:900px;margin:0 auto}
+h1{font-size:22px;margin:4px 0 12px}h2{font-size:16px;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+input,button{font:inherit;min-height:44px;border-radius:8px;border:1px solid var(--line);padding:0 12px;width:100%;margin-bottom:8px;background:var(--bg);color:var(--ink)}
+button{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600;cursor:pointer}
+button.alt{background:transparent;color:var(--acc)}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.st{background:var(--soft);border-radius:10px;padding:10px}.st small{color:var(--mute);display:block}.st b{font-size:24px}
+.bars{display:flex;align-items:flex-end;gap:2px;height:90px;border-bottom:1px solid var(--line)}
+.bars div{flex:1;background:var(--acc);min-height:1px;border-radius:2px 2px 0 0}
+.lab{display:flex;justify-content:space-between;color:var(--mute);font-size:12px;margin-top:2px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mute);font-weight:600}
+.err{color:#c0392b;min-height:20px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<h1>Админка калькулятора ворот</h1>
+
+<div id="login" class="card">
+  <input id="em" type="email" placeholder="Почта администратора" autocomplete="username">
+  <input id="pw" type="password" placeholder="Пароль" autocomplete="current-password">
+  <button id="go">Войти</button>
+  <div class="err" id="err"></div>
+</div>
+
+<div id="app" class="hide">
+  <button id="ref">Обновить</button>
+  <div class="card"><div class="stats" id="stats"></div></div>
+  <div class="card"><h2>Нагрузка за 24 часа (расчётов в час)</h2><div class="bars" id="bh"></div><div class="lab"><span>24 ч назад</span><span>сейчас</span></div></div>
+  <div class="card"><h2>За 14 дней (расчётов в день)</h2><div class="bars" id="bd"></div><div class="lab"><span>14 дн. назад</span><span>сегодня</span></div></div>
+  <div class="card"><h2>Последние расчёты</h2><div class="tw"><table id="tb"></table></div></div>
+  <button class="alt" id="out">Выйти</button>
+</div>
+
+<script>
+var SB_URL="https://cciptmyyzcdwdsfigznq.supabase.co",SB_KEY="sb_publishable_LG5VrmefDiXPuBE5kh1ozw__t25jw_T";   /* впишите те же значения, что в приложении */
+var TN={slide:"Откатные",swing:"Распашные",sect:"Секционные"},FN={prof:"Профнастил",shtak:"Евроштакетник",sand:"Сэндвич"};
+var $=function(i){return document.getElementById(i)};
+function esc(x){return String(x==null?"":x).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+var tok="";try{tok=sessionStorage.getItem("adm_t")||""}catch(e){}
+function show(){$("login").classList.toggle("hide",!!tok);$("app").classList.toggle("hide",!tok);}
+$("go").onclick=function(){
+  $("err").textContent="";
+  if(!SB_URL){$("err").textContent="В файле не указан адрес Supabase";return}
+  fetch(SB_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{apikey:SB_KEY,"Content-Type":"application/json"},
+    body:JSON.stringify({email:$("em").value.trim(),password:$("pw").value})})
+  .then(function(r){return r.json()}).then(function(j){
+    if(!j.access_token){$("err").textContent="Неверная почта или пароль";return}
+    tok=j.access_token;try{sessionStorage.setItem("adm_t",tok)}catch(e){}
+    show();load();
+  }).catch(function(){$("err").textContent="Нет связи с сервером"});
+};
+$("out").onclick=function(){tok="";try{sessionStorage.removeItem("adm_t")}catch(e){}show();};
+$("ref").onclick=load;
+function load(){
+  fetch(SB_URL+"/rest/v1/calcs?select=*&order=created_at.desc&limit=2000",{headers:{apikey:SB_KEY,Authorization:"Bearer "+tok}})
+  .then(function(r){if(r.status===401){$("out").onclick();throw 0}return r.json()}).then(render).catch(function(){});
+}
+function bars(el,counts){
+  var m=Math.max.apply(null,counts.concat([1]));
+  el.innerHTML=counts.map(function(c){return '<div title="'+c+'" style="height:'+Math.round(c/m*100)+'%"></div>'}).join("");
+}
+function render(rows){
+  if(!Array.isArray(rows))rows=[];
+  var now=Date.now(),day0=new Date();day0.setHours(0,0,0,0);
+  var today=0,dev={},sum=0,h=[],d=[],i;
+  for(i=0;i<24;i++)h.push(0);for(i=0;i<14;i++)d.push(0);
+  rows.forEach(function(r){
+    var t=new Date(r.created_at).getTime();
+    if(t>=day0.getTime())today++;
+    dev[r.device]=1;sum+=+r.total||0;
+    var hi=Math.floor((now-t)/3600000);if(hi>=0&&hi<24)h[23-hi]++;
+    var di=Math.floor((day0.getTime()-new Date(new Date(t).setHours(0,0,0,0)))/86400000);if(di>=0&&di<14)d[13-di]++;
+  });
+  var last24=h.reduce(function(a,b){return a+b},0);
+  $("stats").innerHTML=[["Всего расчётов",rows.length],["Сегодня",today],["За 24 часа",last24],["Устройств",Object.keys(dev).length],
+    ["Средний расчёт",rows.length?Math.round(sum/rows.length).toLocaleString("ru-RU")+" ₽":"—"]]
+    .map(function(x){return '<div class="st"><small>'+x[0]+'</small><b>'+esc(x[1])+'</b></div>'}).join("");
+  bars($("bh"),h);bars($("bd"),d);
+  $("tb").innerHTML="<tr><th>Когда</th><th>Устр.</th><th>Тип</th><th>Размер, м</th><th>Отделка</th><th>Опции</th><th>Итого</th></tr>"+
+    rows.slice(0,100).map(function(r){
+      var o=[r.auto?"привод":"",r.gate?"калитка":"",r.mount?"монтаж":"",r.deliv?"доставка":""].filter(Boolean).join(", ");
+      return "<tr><td>"+esc(new Date(r.created_at).toLocaleString("ru-RU"))+"</td><td>"+esc(String(r.device).slice(0,6))+"</td><td>"+esc(TN[r.gate_type]||r.gate_type)+
+        "</td><td>"+esc(r.width)+" × "+esc(r.height)+"</td><td>"+esc(FN[r.fill]||r.fill)+"</td><td>"+esc(o)+"</td><td>"+esc((+r.total||0).toLocaleString("ru-RU"))+" ₽</td></tr>";
+    }).join("");
+}
+show();if(tok)load();
+</script>
+</body>
+</html>
