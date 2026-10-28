@@ -32,12 +32,19 @@ button{font:inherit;min-height:46px;border-radius:10px;border:1px solid var(--ac
 button.alt{background:transparent;color:var(--acc);margin-top:8px}
 details summary{font-weight:600;min-height:32px;cursor:pointer}
 .prices{display:grid;grid-template-columns:1fr 110px;gap:8px 10px;align-items:center;margin-top:8px;font-size:14px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.tabs button{background:transparent;color:var(--acc);margin:0}
+.tabs button.on{background:var(--acc);color:var(--accink)}
+.hide{display:none}
+.sm{font-size:13px;color:var(--mute);margin:6px 0 0}
 </style>
 </head>
 <body>
 <h1>Калькулятор ворот</h1>
 <p class="sub">Размеры проёма, тип, отделка и привод — получите ориентировочную стоимость.</p>
 
+<div class="tabs"><button id="tA" class="on">Общий расчёт</button><button id="tB">Секционные Ryterna</button></div>
+<div id="tabA">
 <div class="card">
   <label for="type">Тип ворот</label>
   <select id="type">
@@ -78,6 +85,39 @@ details summary{font-weight:600;min-height:32px;cursor:pointer}
   </details>
 </div>
 
+</div>
+<div id="tabB" class="hide">
+<div class="card">
+  <p class="sm" style="margin:0 0 8px">Сэндвич-панель 40 мм с пенополиуретаном, торсионные пружины. Размеры до 8000 × 6000 мм и более.</p>
+  <label for="rm">Модель ворот</label>
+  <select id="rm"><option value="TLP">TLP</option><option value="R40">R40</option><option value="TL">TL</option></select>
+  <label for="rp">Рисунок панели</label>
+  <select id="rp"><option value="narrow">Полоса, под дерево</option><option value="wide">Широкая полоса, под дерево</option><option value="smooth">Без рисунка, гладкая</option></select>
+  <label for="rc">Цвет</label>
+  <select id="rc"></select>
+  <div class="row">
+    <div><label for="rw">Ширина проёма, мм</label><input id="rw" type="number" inputmode="numeric" value="2000"></div>
+    <div><label for="rh">Высота проёма, мм</label><input id="rh" type="number" inputmode="numeric" value="2000"></div>
+  </div>
+  <label for="rl">Высота перемычки, мм</label><input id="rl" type="number" inputmode="numeric" value="500">
+  <div class="row">
+    <div><label for="rsl">Левый заплечик, мм</label><input id="rsl" type="number" inputmode="numeric" value="200"></div>
+    <div><label for="rsr">Правый заплечик, мм</label><input id="rsr" type="number" inputmode="numeric" value="200"></div>
+  </div>
+  <div class="row">
+    <div><label for="rq">Количество, шт</label><input id="rq" type="number" inputmode="numeric" min="1" value="1"></div>
+    <div><label for="rd">Скидка дилера, %</label><input id="rd" type="number" inputmode="decimal" min="0" max="100" value="0"></div>
+  </div>
+</div>
+<div class="total"><small>Цена с НДС (22%)</small><b id="rsum">—</b></div>
+<div class="card">
+  <table id="rrows"></table>
+  <div class="note" id="rtip"></div>
+</div>
+<button id="copyB">Скопировать расчёт</button>
+<p class="sm">Для размера 2000 × 2000 цены взяты из калькулятора Ryterna. Для других размеров цена пока оценочная (пропорционально площади), её нужно уточнить по прайсу.</p>
+</div>
+<script src="config.js"></script>
 <script>
 var DEF={
   base_slide:4500,base_swing:3500,base_sect:8500,
@@ -100,7 +140,7 @@ var NAMES={slide:"Откатные",swing:"Распашные",sect:"Секци�
 var FNAMES={prof:"профнастил",shtak:"евроштакетник",sand:"сэндвич-панель"};
 var lastText="";
 /* === Аналитика: впишите адрес и ключ проекта Supabase (см. инструкцию) === */
-var SB_URL="https://cciptmyyzcdwdsfigznq.supabase.co",SB_KEY="sb_publishable_LG5VrmefDiXPuBE5kh1ozw__t25jw_T";
+var SB_URL=window.SB_URL||"",SB_KEY=window.SB_KEY||"";
 var DEVICE="";
 try{DEVICE=localStorage.getItem("gc_dev")||"";if(!DEVICE){DEVICE=Math.random().toString(36).slice(2,8)+Date.now().toString(36);localStorage.setItem("gc_dev",DEVICE);}}catch(e){DEVICE="anon"}
 var cur=null,tt=null;
@@ -174,6 +214,63 @@ $("copy").addEventListener("click",function(){
 $("reset").addEventListener("click",function(){
   P=JSON.parse(JSON.stringify(DEF));try{localStorage.removeItem("gc_prices")}catch(e){}buildPrices();calc();
 });
+
+/* ===== Секционные Ryterna ===== */
+var RY={
+  base:{TLP:{wood:119900,smooth:131890},R40:{wood:119900,smooth:131890},TL:{wood:114100,smooth:125510}},
+  lift:{TLP:"STD",R40:"UM",TL:"STD"},
+  depthAdd:{TLP:510,R40:660,TL:510},
+  fixed:0.4
+};
+var RCOL={wood:["Коричневый (RAL 8017)","Белый (RAL 9016)","Серый (RAL 7016)","Серебристый (RAL 9006)","Чёрный (RAL 9005)"],
+  smooth:["Белый (RAL 9016)","Серый (RAL 7016)"]};
+var RPN={narrow:"Полоса, под дерево",wide:"Широкая полоса, под дерево",smooth:"Без рисунка, гладкая"};
+var lastTextB="";
+function fillColors(){
+  var k=$("rp").value==="smooth"?"smooth":"wood",old=$("rc").value;
+  $("rc").innerHTML=RCOL[k].map(function(c){return "<option>"+c+"</option>"}).join("");
+  if(RCOL[k].indexOf(old)>=0)$("rc").value=old;
+}
+function calcB(){
+  var m=$("rm").value,pt=$("rp").value,k=pt==="smooth"?"smooth":"wood";
+  var w=parseFloat($("rw").value)||0,h=parseFloat($("rh").value)||0,q=Math.max(1,parseInt($("rq").value)||1);
+  var l=parseFloat($("rl").value)||0,sl=parseFloat($("rsl").value)||0,sr=parseFloat($("rsr").value)||0;
+  var disc=Math.min(100,Math.max(0,parseFloat($("rd").value)||0));
+  var base=RY.base[m][k],ratio=(w*h)/4000000;
+  var unit=Math.round(base*(RY.fixed+(1-RY.fixed)*ratio)/10)*10;
+  var gross=unit*q,total=Math.round(gross*(1-disc/100));
+  var rows=[["Модель",m+", подъём "+RY.lift[m]],["Панели",RPN[pt]],["Цвет",$("rc").value],
+    ["Габариты",w+" × "+h+" мм"],["Цена за 1 шт",fmt(unit)],["Количество",q+" шт"]];
+  if(disc>0){rows.push(["Скидка дилера ("+disc+"%)","−"+fmt(gross-total)]);}
+  rows.push(["Мин. глубина помещения","~"+(h+RY.depthAdd[m])+" мм"]);
+  $("rrows").innerHTML=rows.map(function(r){return "<tr><td>"+r[0]+"</td><td>"+r[1]+"</td></tr>"}).join("");
+  $("rsum").textContent=(w>0&&h>0)?fmt(total):"—";
+  var tip=[];
+  if(w>8000||h>6000)tip.push("Размер больше 8000 × 6000 мм — уточните у производителя.");
+  if(w!==2000||h!==2000)tip.push("Цена для этого размера оценочная.");
+  if(l<200)tip.push("Перемычка меньше 200 мм — проверьте возможность монтажа.");
+  tip.push("Глубина помещения указана для высоты проёма; точное значение зависит от привода.");
+  $("rtip").textContent=tip.join(" ");
+  lastTextB="Секционные ворота "+m+" ("+RPN[pt]+", "+$("rc").value+")\nПроём: "+w+" × "+h+" мм, перемычка "+l+", заплечики "+sl+"/"+sr+"\n"+q+" шт, с НДС 22%"+(disc>0?", скидка "+disc+"%":"")+"\nИтого: "+fmt(total);
+  cur={device:DEVICE,gate_type:"ryterna",width:w/1000,height:h/1000,fill:m+"/"+pt,auto:false,gate:false,mount:false,deliv:false,total:total};
+}
+["rm","rp","rc","rw","rh","rl","rsl","rsr","rq","rd"].forEach(function(id){
+  $(id).addEventListener("input",function(){if(id==="rp")fillColors();calcB();schedule();});
+  $(id).addEventListener("change",function(){if(id==="rp")fillColors();calcB();schedule();});
+});
+$("copyB").addEventListener("click",function(){
+  var b=$("copyB");
+  function ok(){b.textContent="Скопировано";setTimeout(function(){b.textContent="Скопировать расчёт"},1500)}
+  try{navigator.clipboard.writeText(lastTextB).then(ok,fb)}catch(e){fb()}
+  function fb(){var ta=document.createElement("textarea");ta.value=lastTextB;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");ok()}catch(e){}document.body.removeChild(ta)}
+});
+function setTab(b){
+  $("tabA").classList.toggle("hide",b);$("tabB").classList.toggle("hide",!b);
+  $("tA").classList.toggle("on",!b);$("tB").classList.toggle("on",b);
+  if(b)calcB();else calc();
+}
+$("tA").onclick=function(){setTab(false)};$("tB").onclick=function(){setTab(true)};
+fillColors();calcB();calc();
 buildPrices();calc();sendQueue([]);
 </script>
 </body>
