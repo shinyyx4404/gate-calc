@@ -109,7 +109,7 @@ function sendQueue(items){
   var q=[];try{q=JSON.parse(localStorage.getItem("gc_q")||"[]")}catch(e){}
   q=q.concat(items||[]);if(!q.length)return;
   fetch(SB_URL+"/rest/v1/calcs",{method:"POST",keepalive:true,
-    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"return=minimal"},
+    headers:{"apikey":SB_KEY,"Content-Type":"application/json","Prefer":"return=minimal"},
     body:JSON.stringify(q)}).then(function(r){
       if(!r.ok)throw 0;try{localStorage.removeItem("gc_q")}catch(e){}
     }).catch(function(){try{localStorage.setItem("gc_q",JSON.stringify(q.slice(-50)))}catch(e){}});
