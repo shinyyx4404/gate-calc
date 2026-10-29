@@ -37,10 +37,26 @@ details summary{font-weight:600;min-height:32px;cursor:pointer}
 .tabs button.on{background:var(--acc);color:var(--accink)}
 .hide{display:none}
 .sm{font-size:13px;color:var(--mute);margin:6px 0 0}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+#menu{position:relative;width:44px;height:44px;min-height:0;margin:0;padding:0;background:transparent;border:0;color:var(--mute);display:flex;align-items:center;justify-content:center;flex:none}
+#menu .dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#d9534f}
+#upd{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#upd.hide{display:none}
+.sheet{background:var(--card);color:var(--ink);width:100%;max-width:560px;max-height:82%;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+.sheet header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.sheet h2{font-size:18px;margin:0}
+#updx{width:40px;height:40px;min-height:0;margin:0;padding:0;background:transparent;border:0;color:var(--mute);font-size:24px;line-height:1}
+.sheet h3{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);margin:16px 0 6px}
+.u{padding:8px 0;border-bottom:1px solid var(--line)}
+.u:last-child{border-bottom:0}
+.u b{display:block}
+.u small{color:var(--mute)}
+.u p{margin:2px 0 0;font-size:15px}
 </style>
 </head>
 <body>
-<h1>Калькулятор ворот</h1>
+<div class="top"><h1>Калькулятор ворот</h1>
+<button id="menu" aria-label="Об обновлениях"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg><span class="dot hide" id="udot"></span></button></div>
 <p class="sub">Размеры проёма, тип, отделка и привод — получите ориентировочную стоимость.</p>
 
 <div class="tabs"><button id="tA" class="on">Общий расчёт</button><button id="tB">Секционные Ryterna</button></div>
@@ -117,7 +133,11 @@ details summary{font-weight:600;min-height:32px;cursor:pointer}
 <button id="copyB">Скопировать расчёт</button>
 <p class="sm">Для размера 2000 × 2000 цены взяты из калькулятора Ryterna. Для других размеров цена пока оценочная (пропорционально площади), её нужно уточнить по прайсу.</p>
 </div>
+<div id="upd" class="hide"><div class="sheet" role="dialog" aria-label="Об обновлениях">
+<header><h2>Об обновлениях</h2><button id="updx" aria-label="Закрыть">×</button></header>
+<div id="updbody"></div></div></div>
 <script src="config.js"></script>
+<script src="updates.js"></script>
 <script>
 var DEF={
   base_slide:4500,base_swing:3500,base_sect:8500,
@@ -297,6 +317,38 @@ function setTab(b){
 }
 $("tA").onclick=function(){setTab(false)};$("tB").onclick=function(){setTab(true)};
 fillColors();calcB();calc();
+
+/* ===== Окно «Об обновлениях» ===== */
+(function(){
+  var L=window.UPDATES||[];
+  var done=L.filter(function(x){return x.status!=="planned"}),plan=L.filter(function(x){return x.status==="planned"});
+  var key=done.length?(done[0].date+"|"+done[0].title):"";
+  function sec(title,items){
+    if(!items.length)return null;
+    var d=document.createElement("div"),h=document.createElement("h3");h.textContent=title;d.appendChild(h);
+    items.forEach(function(x){
+      var u=document.createElement("div");u.className="u";
+      var b=document.createElement("b");b.textContent=x.title||"";u.appendChild(b);
+      if(x.date){var m=document.createElement("small");m.textContent=x.date;u.appendChild(m);}
+      if(x.text){var p=document.createElement("p");p.textContent=x.text;u.appendChild(p);}
+      d.appendChild(u);
+    });
+    return d;
+  }
+  function open(){
+    var box=$("updbody");box.innerHTML="";
+    var a=sec("Планируется",plan),b=sec("Вышло",done);
+    if(a)box.appendChild(a);if(b)box.appendChild(b);
+    if(!a&&!b)box.textContent="Пока записей нет.";
+    $("upd").classList.remove("hide");$("udot").classList.add("hide");
+    try{localStorage.setItem("gc_upd_seen",key)}catch(e){}
+  }
+  function close(){$("upd").classList.add("hide")}
+  $("menu").addEventListener("click",open);
+  $("updx").addEventListener("click",close);
+  $("upd").addEventListener("click",function(e){if(e.target===$("upd"))close()});
+  try{if(key&&localStorage.getItem("gc_upd_seen")!==key)$("udot").classList.remove("hide")}catch(e){}
+})();
 buildPrices();calc();sendQueue([]);
 </script>
 </body>
