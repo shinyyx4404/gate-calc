@@ -25,6 +25,7 @@ th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-
 th{color:var(--mute);font-weight:600}
 .err{color:#c0392b;min-height:20px}
 .hide{display:none}
+.dv{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}.dv:last-child{border-bottom:0}.dv small{color:var(--mute);display:block}.dv button{width:auto;margin:0;min-height:40px;padding:0 14px}
 </style>
 </head>
 <body>
@@ -42,12 +43,14 @@ th{color:var(--mute);font-weight:600}
   <div class="card"><div class="stats" id="stats"></div></div>
   <div class="card"><h2>Нагрузка за 24 часа (расчётов в час)</h2><div class="bars" id="bh"></div><div class="lab"><span>24 ч назад</span><span>сейчас</span></div></div>
   <div class="card"><h2>За 14 дней (расчётов в день)</h2><div class="bars" id="bd"></div><div class="lab"><span>14 дн. назад</span><span>сегодня</span></div></div>
+  <div class="card"><h2>Устройства</h2><div id="dv"></div></div>
   <div class="card"><h2>Последние расчёты</h2><div class="tw"><table id="tb"></table></div></div>
   <button class="alt" id="out">Выйти</button>
 </div>
 
+<script src="config.js"></script>
 <script>
-var SB_URL="https://cciptmyyzcdwdsfigznq.supabase.co",SB_KEY="sb_publishable_LG5VrmefDiXPuBE5kh1ozw__t25jw_T";   /* впишите те же значения, что в приложении */
+var SB_URL=window.SB_URL||"",SB_KEY=window.SB_KEY||"",NAMES={};
 var TN={slide:"Откатные",swing:"Распашные",sect:"Секционные"},FN={prof:"Профнастил",shtak:"Евроштакетник",sand:"Сэндвич"};
 var $=function(i){return document.getElementById(i)};
 function esc(x){return String(x==null?"":x).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
@@ -66,10 +69,24 @@ $("go").onclick=function(){
 };
 $("out").onclick=function(){tok="";try{sessionStorage.removeItem("adm_t")}catch(e){}show();};
 $("ref").onclick=load;
+function dn(code,model){return NAMES[code]||model||String(code).slice(0,6)}
 function load(){
-  fetch(SB_URL+"/rest/v1/calcs?select=*&order=created_at.desc&limit=2000",{headers:{apikey:SB_KEY,Authorization:"Bearer "+tok}})
-  .then(function(r){if(r.status===401){$("out").onclick();throw 0}return r.json()}).then(render).catch(function(){});
+  var h={apikey:SB_KEY,Authorization:"Bearer "+tok};
+  var b=fetch(SB_URL+"/rest/v1/device_names?select=*",{headers:h}).then(function(r){return r.ok?r.json():[]}).catch(function(){return []});
+  fetch(SB_URL+"/rest/v1/calcs?select=*&order=created_at.desc&limit=2000",{headers:h})
+  .then(function(r){if(r.status===401){$("out").onclick();throw 0}return r.json()})
+  .then(function(rows){return b.then(function(n){NAMES={};(Array.isArray(n)?n:[]).forEach(function(x){NAMES[x.device]=x.name});render(rows)})})
+  .catch(function(){});
 }
+function rename(code){
+  var n=prompt("Название устройства (пусто = убрать название)",NAMES[code]||"");
+  if(n===null)return;n=n.trim();
+  var h={apikey:SB_KEY,Authorization:"Bearer "+tok,"Content-Type":"application/json"};
+  var req=n?fetch(SB_URL+"/rest/v1/device_names?on_conflict=device",{method:"POST",headers:Object.assign({Prefer:"resolution=merge-duplicates,return=minimal"},h),body:JSON.stringify({device:code,name:n})})
+           :fetch(SB_URL+"/rest/v1/device_names?device=eq."+encodeURIComponent(code),{method:"DELETE",headers:h});
+  req.then(function(r){if(!r.ok)alert("Не удалось сохранить. Проверьте, что в Supabase выполнен SQL для device_names.");load()}).catch(function(){alert("Нет связи")});
+}
+$("dv").addEventListener("click",function(e){var b=e.target.closest("button");if(b&&b.dataset.d)rename(b.dataset.d)});
 function bars(el,counts){
   var m=Math.max.apply(null,counts.concat([1]));
   el.innerHTML=counts.map(function(c){return '<div title="'+c+'" style="height:'+Math.round(c/m*100)+'%"></div>'}).join("");
@@ -91,10 +108,12 @@ function render(rows){
     ["Средний расчёт",rows.length?Math.round(sum/rows.length).toLocaleString("ru-RU")+" ₽":"—"]]
     .map(function(x){return '<div class="st"><small>'+x[0]+'</small><b>'+esc(x[1])+'</b></div>'}).join("");
   bars($("bh"),h);bars($("bd"),d);
+  var dm={};rows.forEach(function(r){var o=dm[r.device]||(dm[r.device]={n:0,last:r.created_at,model:r.model});o.n++;if(!o.model&&r.model)o.model=r.model;});
+  $("dv").innerHTML=Object.keys(dm).map(function(c){var o=dm[c];return '<div class="dv"><div><b>'+esc(dn(c,o.model))+'</b><small>'+esc(o.model&&NAMES[c]?o.model+" · ":"")+'код '+esc(String(c).slice(0,6))+' · '+o.n+' расч. · '+esc(new Date(o.last).toLocaleString("ru-RU"))+'</small></div><button data-d="'+esc(c)+'">Имя</button></div>'}).join("")||"Пока нет данных";
   $("tb").innerHTML="<tr><th>Когда</th><th>Устр.</th><th>Тип</th><th>Размер, м</th><th>Отделка</th><th>Опции</th><th>Итого</th></tr>"+
     rows.slice(0,100).map(function(r){
       var o=[r.auto?"привод":"",r.gate?"калитка":"",r.mount?"монтаж":"",r.deliv?"доставка":""].filter(Boolean).join(", ");
-      return "<tr><td>"+esc(new Date(r.created_at).toLocaleString("ru-RU"))+"</td><td>"+esc(String(r.device).slice(0,6))+"</td><td>"+esc(TN[r.gate_type]||r.gate_type)+
+      return "<tr><td>"+esc(new Date(r.created_at).toLocaleString("ru-RU"))+"</td><td>"+esc(dn(r.device,r.model))+"</td><td>"+esc(TN[r.gate_type]||r.gate_type)+
         "</td><td>"+esc(r.width)+" × "+esc(r.height)+"</td><td>"+esc(FN[r.fill]||r.fill)+"</td><td>"+esc(o)+"</td><td>"+esc((+r.total||0).toLocaleString("ru-RU"))+" ₽</td></tr>";
     }).join("");
 }

@@ -143,6 +143,9 @@ var lastText="";
 var SB_URL=window.SB_URL||"",SB_KEY=window.SB_KEY||"";
 var DEVICE="";
 try{DEVICE=localStorage.getItem("gc_dev")||"";if(!DEVICE){DEVICE=Math.random().toString(36).slice(2,8)+Date.now().toString(36);localStorage.setItem("gc_dev",DEVICE);}}catch(e){DEVICE="anon"}
+var MODEL="";
+try{var mm=(navigator.userAgent||"").match(/Android[^;]*;\s*([^;)]+?)(?:\s+Build|;|\))/);if(mm&&mm[1].trim().length>1)MODEL=mm[1].trim();}catch(e){}
+try{if(navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues){navigator.userAgentData.getHighEntropyValues(["model"]).then(function(v){if(v&&v.model)MODEL=v.model}).catch(function(){})}}catch(e){}
 var cur=null,tt=null;
 function sendQueue(items){
   if(!SB_URL||!SB_KEY)return;
@@ -196,7 +199,7 @@ function calc(){
     tip="Секционные: проверьте притолоку (не менее 0,2 м) и боковые зазоры (не менее 0,1 м с каждой стороны), а также глубину помещения (не менее высоты проёма + 0,5 м).";
     if(w>5||h>3)tip+=" Размер больше стандартного — потребуется индивидуальный заказ.";
   }
-  cur={device:DEVICE,gate_type:t,width:w,height:h,fill:f,auto:$("auto").checked,gate:$("gate").checked,mount:$("mount").checked,deliv:$("deliv").checked,total:Math.round(sum)};
+  cur={device:DEVICE,model:MODEL,gate_type:t,width:w,height:h,fill:f,auto:$("auto").checked,gate:$("gate").checked,mount:$("mount").checked,deliv:$("deliv").checked,total:Math.round(sum)};
   $("tip").textContent=tip;
   lastText="Расчёт ворот\n"+NAMES[t]+", "+FNAMES[f]+"\nПроём: "+w+" × "+h+" м ("+area.toFixed(2)+" м²)\n"+
     rows.slice(1).map(function(r){return r[0]+": "+r[1]}).join("\n")+"\nИтого: "+fmt(sum);
@@ -252,7 +255,7 @@ function calcB(){
   tip.push("Глубина помещения указана для высоты проёма; точное значение зависит от привода.");
   $("rtip").textContent=tip.join(" ");
   lastTextB="Секционные ворота "+m+" ("+RPN[pt]+", "+$("rc").value+")\nПроём: "+w+" × "+h+" мм, перемычка "+l+", заплечики "+sl+"/"+sr+"\n"+q+" шт, с НДС 22%"+(disc>0?", скидка "+disc+"%":"")+"\nИтого: "+fmt(total);
-  cur={device:DEVICE,gate_type:"ryterna",width:w/1000,height:h/1000,fill:m+"/"+pt,auto:false,gate:false,mount:false,deliv:false,total:total};
+  cur={device:DEVICE,model:MODEL,gate_type:"ryterna",width:w/1000,height:h/1000,fill:m+"/"+pt,auto:false,gate:false,mount:false,deliv:false,total:total};
 }
 ["rm","rp","rc","rw","rh","rl","rsl","rsr","rq","rd"].forEach(function(id){
   $(id).addEventListener("input",function(){if(id==="rp")fillColors();calcB();schedule();});
