@@ -144,8 +144,31 @@ var SB_URL=window.SB_URL||"",SB_KEY=window.SB_KEY||"";
 var DEVICE="";
 try{DEVICE=localStorage.getItem("gc_dev")||"";if(!DEVICE){DEVICE=Math.random().toString(36).slice(2,8)+Date.now().toString(36);localStorage.setItem("gc_dev",DEVICE);}}catch(e){DEVICE="anon"}
 var MODEL="";
-try{var mm=(navigator.userAgent||"").match(/Android[^;]*;\s*([^;)]+?)(?:\s+Build|;|\))/);if(mm&&mm[1].trim().length>1)MODEL=mm[1].trim();}catch(e){}
-try{if(navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues){navigator.userAgentData.getHighEntropyValues(["model"]).then(function(v){if(v&&v.model)MODEL=v.model}).catch(function(){})}}catch(e){}
+var GN={"SM-S921":"Galaxy S24","SM-S926":"Galaxy S24+","SM-S928":"Galaxy S24 Ultra","SM-S721":"Galaxy S24 FE",
+"SM-S931":"Galaxy S25","SM-S936":"Galaxy S25+","SM-S938":"Galaxy S25 Ultra","SM-S911":"Galaxy S23","SM-S916":"Galaxy S23+",
+"SM-S918":"Galaxy S23 Ultra","SM-S711":"Galaxy S23 FE","SM-S901":"Galaxy S22","SM-S906":"Galaxy S22+","SM-S908":"Galaxy S22 Ultra",
+"SM-G991":"Galaxy S21","SM-G996":"Galaxy S21+","SM-G998":"Galaxy S21 Ultra","SM-A556":"Galaxy A55","SM-A546":"Galaxy A54",
+"SM-A536":"Galaxy A53","SM-A356":"Galaxy A35","SM-A346":"Galaxy A34","SM-A256":"Galaxy A25","SM-A156":"Galaxy A15",
+"SM-A566":"Galaxy A56","SM-A366":"Galaxy A36","SM-F956":"Galaxy Z Fold6","SM-F946":"Galaxy Z Fold5","SM-F936":"Galaxy Z Fold4",
+"SM-F741":"Galaxy Z Flip6","SM-F731":"Galaxy Z Flip5","SM-F721":"Galaxy Z Flip4"};
+function cap(x){x=x||"";return x.charAt(0).toUpperCase()+x.slice(1)}
+function friendly(man,model){
+  model=(model||"").trim();if(!model||model.length<2)return "";
+  var m=model.toUpperCase();
+  if(m.indexOf("SM-")===0&&GN[m.slice(0,7)])return "Samsung "+GN[m.slice(0,7)];
+  if(/^pixel/i.test(model))return "Google "+model;
+  if(/^i(phone|pad)/i.test(model))return model;
+  if(man&&model.toLowerCase().indexOf(man.toLowerCase())===0)return model;
+  return (cap(man)+" "+model).trim();
+}
+try{
+  var ua=navigator.userAgent||"";
+  if(/iPhone/.test(ua))MODEL="iPhone";else if(/iPad/.test(ua))MODEL="iPad";
+  else{var mm=ua.match(/Android[^;]*;\s*([^;)]+?)(?:\s+Build|;|\))/);if(mm)MODEL=friendly("",mm[1]);}
+}catch(e){}
+try{if(navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues){navigator.userAgentData.getHighEntropyValues(["model"]).then(function(v){var f=friendly("",v&&v.model);if(f)MODEL=f}).catch(function(){})}}catch(e){}
+try{var DV=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Device;
+  if(DV&&DV.getInfo)DV.getInfo().then(function(i){var f=friendly(i.manufacturer,i.model);if(f)MODEL=f}).catch(function(){});}catch(e){}
 var cur=null,tt=null;
 function sendQueue(items){
   if(!SB_URL||!SB_KEY)return;
